@@ -9,37 +9,24 @@ using Lowscope.AppwritePlugin.Accounts.Model;
 using Lowscope.AppwritePlugin.Utils;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
+using UnityEngine.XR;
 using WebRequest = Lowscope.AppwritePlugin.Utils.WebRequest;
 
 namespace Lowscope.AppwritePlugin.Accounts
 {
-	public class Account
+	public class Account: Service
 	{
 		public Action<User> OnLogin = delegate {  };
 		public Action OnLogout = delegate {  };
 
-		private readonly AppwriteConfig config;
-		private readonly Dictionary<string, string> headers;
-
-		private User user;
 		private DateTime lastRegisterRequestDate;
 
 		private bool validatedSession = false;
-		
-		private string UserPath => Path.Combine(Application.persistentDataPath, "user.json");
 
-		internal Account(AppwriteConfig config)
+
+		internal Account(AppwriteConfig config): base(config)
 		{
-			this.config = config;
-
-			headers = new Dictionary<string, string>(new Dictionary<string, string>
-			{
-				{ "X-Appwrite-Project", config.AppwriteProjectID },
-				{ "Content-Type", "application/json" }
-			});
-
-			// Fetches user info written to disk.
-			user = FileUtilities.Read<User>(UserPath, config);
+			
 		}
 
 		private void StoreUserToDisk()
@@ -333,5 +320,55 @@ namespace Lowscope.AppwritePlugin.Accounts
 
 			return null;
 		}
-	}
+
+		public async UniTask<(User, ELoginResponse)> CreateAnonymousSession()
+		{
+			if (user != null) return (user, ELoginResponse.AlreadyLoggedIn); 
+
+            string url = $"{config.AppwriteURL}/account/sessions/anonymous";
+
+            using var request = new WebRequest(EWebRequestType.POST, url, headers, user?.Cookie);
+
+            var (body, httpStatusCode) = await request.Send();
+
+            if (httpStatusCode != HttpStatusCode.Created)
+            {
+                switch (httpStatusCode)
+                {
+                    case 0:
+                        return (null, ELoginResponse.NoConnection);
+                    case HttpStatusCode.Unauthorized:
+                    case HttpStatusCode.NotFound:
+                        return (null, body.Contains("blocked")
+                            ? ELoginResponse.Blocked
+                            : ELoginResponse.WrongCredentials);
+                    case HttpStatusCode.ServiceUnavailable
+                        or HttpStatusCode.GatewayTimeout
+                        or HttpStatusCode.InternalServerError
+                        or HttpStatusCode.TooManyRequests:
+                        return (null, ELoginResponse.ServerBusy);
+                }
+
+                Debug.Log($"Unimplemented: {httpStatusCode} {body}");
+                return (null, ELoginResponse.Failed);
+            }
+
+            JObject parsedData = JObject.Parse(body);
+
+            user = new User
+            {
+                Id = (string)parsedData.GetValue("userId"),
+                Email = (string)parsedData.GetValue("providerUid"),
+                Cookie = request.ExtractCookie()
+            };
+
+            // Attempts to get account info to fill in additional user data such as 
+            // If email is verified and Name.
+            if (!await RequestUserInfo())
+                return (null, ELoginResponse.Failed);
+
+            StoreUserToDisk();
+            return (user, ELoginResponse.Success);
+        }
+    }
 }

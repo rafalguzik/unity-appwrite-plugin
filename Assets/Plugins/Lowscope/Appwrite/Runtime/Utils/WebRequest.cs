@@ -68,6 +68,26 @@ namespace Lowscope.AppwritePlugin.Utils
 			}
 		}
 
+		public async UniTask<(byte[], HttpStatusCode)> Download()
+		{
+            try
+            {
+                await webRequest.SendWebRequest();
+                var responseCode = (int)webRequest.responseCode;
+
+                if (requestType == EWebRequestType.DELETE)
+                    return (null, HttpStatusCode.OK);
+
+                byte[] data = webRequest?.downloadHandler.data;
+                return (data, (HttpStatusCode)responseCode);
+
+            }
+            catch (UnityWebRequestException exception)
+            {
+                return (null, (HttpStatusCode)exception.ResponseCode);
+            }
+        }
+
 		public void Dispose()
 		{
 			webRequest?.Dispose();
