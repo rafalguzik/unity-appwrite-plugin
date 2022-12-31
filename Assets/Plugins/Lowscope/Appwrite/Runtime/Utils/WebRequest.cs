@@ -68,23 +68,33 @@ namespace Lowscope.AppwritePlugin.Utils
 			}
 		}
 
-		public async UniTask<(byte[], HttpStatusCode)> Download()
+		public async UniTask<HttpStatusCode> Download(string path, Action<ulong> progressCallback)
 		{
             try
             {
-                await webRequest.SendWebRequest();
+				DownloadHandlerFile dh = new DownloadHandlerFile(path);
+				webRequest.downloadHandler = dh;
+                UnityWebRequestAsyncOperation downloadOperation = webRequest.SendWebRequest();
+
+				var headers = webRequest.GetResponseHeaders();
+
+				while (!downloadOperation.isDone)
+				{
+					progressCallback?.Invoke(webRequest.downloadedBytes);
+					await UniTask.Delay(100);
+				}
+
                 var responseCode = (int)webRequest.responseCode;
 
-                if (requestType == EWebRequestType.DELETE)
-                    return (null, HttpStatusCode.OK);
+				if (requestType == EWebRequestType.DELETE)
+					return HttpStatusCode.OK;
 
-                byte[] data = webRequest?.downloadHandler.data;
-                return (data, (HttpStatusCode)responseCode);
+                return (HttpStatusCode)responseCode;
 
             }
             catch (UnityWebRequestException exception)
             {
-                return (null, (HttpStatusCode)exception.ResponseCode);
+                return (HttpStatusCode)exception.ResponseCode;
             }
         }
 
@@ -98,6 +108,16 @@ namespace Lowscope.AppwritePlugin.Utils
 			return webRequest.GetResponseHeaders().TryGetValue("Set-Cookie", out string cookie)
 				? cookie[..cookie.IndexOf(" expires=", StringComparison.InvariantCulture)]
 				: "";
+		}
+
+		public float GetDownloadProgress()
+		{
+			return webRequest.downloadProgress;
+		}
+
+		public void SetTimeout(int timeout)
+		{
+			webRequest.timeout = timeout;
 		}
 	}
 }

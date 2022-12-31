@@ -323,7 +323,10 @@ namespace Lowscope.AppwritePlugin.Accounts
 
 		public async UniTask<(User, ELoginResponse)> CreateAnonymousSession()
 		{
-			if (user != null) return (user, ELoginResponse.AlreadyLoggedIn); 
+			ReadUserData();
+
+			if (user != null) return (user, ELoginResponse.AlreadyLoggedIn);
+
 
             string url = $"{config.AppwriteURL}/account/sessions/anonymous";
 

@@ -26,8 +26,18 @@ namespace Lowscope.AppwritePlugin
                     { "Content-Type", "application/json" }
                 });
 
+            //ReadUserData();
+        }
+
+        protected void ReadUserData()
+        {
             // Fetches user info written to disk.
             user = FileUtilities.Read<User>(UserPath, config);
+        }
+
+        public void SetUser(User user)
+        {
+            this.user = user;
         }
     }
 }
