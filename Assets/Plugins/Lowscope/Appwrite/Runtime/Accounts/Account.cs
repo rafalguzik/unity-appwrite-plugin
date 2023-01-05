@@ -331,28 +331,14 @@ namespace Lowscope.AppwritePlugin.Accounts
             string url = $"{config.AppwriteURL}/account/sessions/anonymous";
 
             using var request = new WebRequest(EWebRequestType.POST, url, headers, user?.Cookie);
+			request.SetTimeout(30);
 
             var (body, httpStatusCode) = await request.Send();
 
             if (httpStatusCode != HttpStatusCode.Created)
             {
-                switch (httpStatusCode)
-                {
-                    case 0:
-                        return (null, ELoginResponse.NoConnection);
-                    case HttpStatusCode.Unauthorized:
-                    case HttpStatusCode.NotFound:
-                        return (null, body.Contains("blocked")
-                            ? ELoginResponse.Blocked
-                            : ELoginResponse.WrongCredentials);
-                    case HttpStatusCode.ServiceUnavailable
-                        or HttpStatusCode.GatewayTimeout
-                        or HttpStatusCode.InternalServerError
-                        or HttpStatusCode.TooManyRequests:
-                        return (null, ELoginResponse.ServerBusy);
-                }
+				ProcessHttpStatusCode(httpStatusCode);
 
-                Debug.Log($"Unimplemented: {httpStatusCode} {body}");
                 return (null, ELoginResponse.Failed);
             }
 

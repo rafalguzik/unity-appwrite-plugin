@@ -4,6 +4,7 @@ using System.IO;
 using Lowscope.AppwritePlugin.Accounts.Model;
 using Lowscope.AppwritePlugin.Utils;
 using UnityEngine;
+using System.Net;
 
 namespace Lowscope.AppwritePlugin
 {
@@ -39,6 +40,20 @@ namespace Lowscope.AppwritePlugin
         {
             this.user = user;
         }
+
+        protected void ProcessHttpStatusCode(HttpStatusCode code, string message = "")
+        {
+            switch (code)
+            {
+                case 0:
+                    throw new AppwriteException(AppwriteException.Error.UnknownError, message);
+                case HttpStatusCode.Unauthorized:
+                    throw new AppwriteException(AppwriteException.Error.NotAuthorized, message);
+                case HttpStatusCode.NotFound:
+                    throw new AppwriteException(AppwriteException.Error.NotFound, message);
+
+            }
+        } 
     }
 }
 

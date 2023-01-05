@@ -48,8 +48,8 @@ namespace Lowscope.AppwritePlugin.Storage
                 return file;
             } else
             {
-                //todo: handle throwing exception properly
-                throw new AppwriteException(httpStatusCode.ToString());
+                ProcessHttpStatusCode(httpStatusCode);
+                return null;
             }
         }
 
@@ -60,7 +60,6 @@ namespace Lowscope.AppwritePlugin.Storage
                 .Replace("{bucketId}", bucketId).Replace("{fileId}", fileId);
 
             using var request = new WebRequest(EWebRequestType.GET, url, headers, user?.Cookie);
-            request.SetTimeout(30);
             var httpStatusCode = await request.Download(path, progressCallback);
 
             if (httpStatusCode == HttpStatusCode.OK)
@@ -69,13 +68,12 @@ namespace Lowscope.AppwritePlugin.Storage
             }
             else
             {
-                switch (httpStatusCode)
+                if (httpStatusCode == HttpStatusCode.Unauthorized)
                 {
-                    case HttpStatusCode.Unauthorized:
-                        throw new AppwriteException("User " + user.Id + "is not authorized to access file " + fileId + " in bucket " + bucketId);
-                    case HttpStatusCode.NotFound:
-                        //throw exception here...
-                        return false;
+                    throw new AppwriteException(AppwriteException.Error.NotAuthorized, "User " + user.Id + "is not authorized to access file " + fileId + " in bucket " + bucketId);
+                } else
+                {
+                    ProcessHttpStatusCode(httpStatusCode);
                 }
 
                 return false;

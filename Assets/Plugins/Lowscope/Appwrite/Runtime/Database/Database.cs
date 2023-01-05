@@ -22,21 +22,17 @@ namespace Lowscope.AppwritePlugin.Database
 
         public async UniTask<JObject> ListDocuments(string databaseId, string collectionId, List<string> query = null)
         {
-            if (user == null)
-            {
-                throw new AppwriteException("User object cannot be null");
-            }  
 
             string url = $"{config.AppwriteURL}/databases/{{databaseId}}/collections/{{collectionId}}/documents"
                 .Replace("{databaseId}", databaseId).Replace("{collectionId}", collectionId);
 
-            using var request = new WebRequest(EWebRequestType.GET, url, headers, user.Cookie);
+            using var request = new WebRequest(EWebRequestType.GET, url, headers, user?.Cookie);
             request.SetTimeout(30);
             var (json, httpStatusCode) = await request.Send();
 
             if (httpStatusCode == 0)
             {
-                throw new AppwriteException("Unrecognized response: " + json);
+                throw new AppwriteException(AppwriteException.Error.UnknownError, "Unrecognized response: " + json);
             }
 
             var jsonObj = JObject.Parse(json);
@@ -46,13 +42,7 @@ namespace Lowscope.AppwritePlugin.Database
             }
             else
             {
-                switch (httpStatusCode)
-                {
-                    case HttpStatusCode.Unauthorized:
-                        throw new AppwriteException((string)jsonObj["message"]);
-                    case HttpStatusCode.NotFound:
-                        return null;
-                }
+                ProcessHttpStatusCode(httpStatusCode);
 
                 return null;
             }
