@@ -1,4 +1,4 @@
-﻿namespace Lowscope.AppwritePlugin.Accounts.Enums
+﻿namespace Lowscope.AppwritePlugin.Utils
 {
 	public enum EWebRequestType
 	{

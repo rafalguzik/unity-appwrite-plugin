@@ -4,8 +4,8 @@ using System.IO;
 using System.Net;
 using System.Text;
 using Cysharp.Threading.Tasks;
-using Lowscope.AppwritePlugin.Accounts.Enums;
 using Lowscope.AppwritePlugin.Accounts.Model;
+using Lowscope.AppwritePlugin.Identity;
 using Lowscope.AppwritePlugin.Utils;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
@@ -24,14 +24,14 @@ namespace Lowscope.AppwritePlugin.Accounts
 		private bool validatedSession = false;
 
 
-		internal Account(AppwriteConfig config): base(config)
+		internal Account(AppwriteConfig config, IUserIdentity userIdentity): base(config, userIdentity)
 		{
 			
 		}
 
-		private void StoreUserToDisk()
+		private void StoreUserToDisk(User user)
 		{
-			FileUtilities.Write(user, UserPath, config);
+			userIdentity.StoreUserIdentity(user);
 
 			if (validatedSession) 
 				return;
@@ -43,43 +43,26 @@ namespace Lowscope.AppwritePlugin.Accounts
 
 		private void ClearUserDataFromDisk()
 		{
-			user = null;
-			validatedSession = false;
-			if (File.Exists(UserPath))
-				File.Delete(UserPath);
-
-			OnLogout();
+			userIdentity.ClearUserIdentity();
+            validatedSession = false;
+            OnLogout();
 		}
 
 		private async UniTask<bool> RequestUserInfo()
 		{
-			if (user == null)
+			if (userIdentity.GetUser() == null)
 				return false;
 
 			string url = $"{config.AppwriteURL}/account";
-			using var request = new WebRequest(EWebRequestType.GET, url, headers, user.Cookie);
-			var (json, httpStatusCode) = await request.Send();
+			using var request = new WebRequest(EWebRequestType.GET, url, headers, userIdentity.GetUser().Cookie);
+			var json = await request.Send();
 
-			if (httpStatusCode == HttpStatusCode.OK)
-			{
-				JObject parsedData = JObject.Parse(json);
-				user.Name = (string)parsedData.GetValue("name");
-				user.EmailVerified = (bool)parsedData.GetValue("emailVerification");
-				StoreUserToDisk();
-			}
-			else
-			{
-				// Session has become invalid, not able to utilize session anymore.
-				switch (httpStatusCode)
-				{
-					case HttpStatusCode.Unauthorized:
-					case HttpStatusCode.NotFound:
-						ClearUserDataFromDisk();
-						break;
-				}
-				
-				return false;
-			}
+			JObject parsedData = JObject.Parse(json);
+
+			User user = userIdentity.GetUser();
+			user.Name = (string)parsedData.GetValue("name");
+			user.EmailVerified = (bool)parsedData.GetValue("emailVerification");
+			StoreUserToDisk(user);
 
 			return true;
 		}
@@ -87,15 +70,16 @@ namespace Lowscope.AppwritePlugin.Accounts
 		/// <summary>
 		/// Creates a session. Cookie is stored on disk and other requests will use the current session.
 		/// </summary>
-		public async UniTask<(User, ELoginResponse)> Login(string email, string password)
+		public async UniTask<User> Login(string email, string password)
 		{
 			if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password))
-				return (null, ELoginResponse.MissingCredentials);
+				//return (null, ELoginResponse.MissingCredentials);
+				throw new AppwriteException("Missing Credentials", ErrorType.MissingCredentials);
 
-			if (user != null)
+			if (userIdentity.GetUser() != null)
 			{
-				if (user.Email == email)
-					return (user, ELoginResponse.AlreadyLoggedIn);
+				if (userIdentity.GetUser().Email == email)
+					return userIdentity.GetUser();
 
 				await Logout();
 			}
@@ -108,35 +92,13 @@ namespace Lowscope.AppwritePlugin.Accounts
 
 			string url = $"{config.AppwriteURL}/account/sessions";
 
-			using var request = new WebRequest(EWebRequestType.POST, url, headers, user?.Cookie, bytes);
+			using var request = new WebRequest(EWebRequestType.POST, url, headers, userIdentity.GetUser()?.Cookie, bytes);
 
-			var (body, httpStatusCode) = await request.Send();
-
-			if (httpStatusCode != HttpStatusCode.Created)
-			{
-				switch (httpStatusCode)
-				{
-					case 0:
-						return (null, ELoginResponse.NoConnection);
-					case HttpStatusCode.Unauthorized:
-					case HttpStatusCode.NotFound:
-						return (null, body.Contains("blocked")
-							? ELoginResponse.Blocked
-							: ELoginResponse.WrongCredentials);
-					case HttpStatusCode.ServiceUnavailable
-						or HttpStatusCode.GatewayTimeout
-						or HttpStatusCode.InternalServerError
-						or HttpStatusCode.TooManyRequests:
-						return (null, ELoginResponse.ServerBusy);
-				}
-				
-				Debug.Log($"Unimplemented: {httpStatusCode} {body}");
-				return (null, ELoginResponse.Failed);
-			}
+			var body = await request.Send();
 
 			JObject parsedData = JObject.Parse(body);
 
-			user = new User
+			User user = new User
 			{
 				Id = (string)parsedData.GetValue("userId"),
 				Email = (string)parsedData.GetValue("providerUid"),
@@ -146,29 +108,29 @@ namespace Lowscope.AppwritePlugin.Accounts
 			// Attempts to get account info to fill in additional user data such as 
 			// If email is verified and Name.
 			if (!await RequestUserInfo())
-				return (null, ELoginResponse.Failed);
+                throw new AppwriteException("Login Failed", ErrorType.Failed);
 
-			StoreUserToDisk();
-			return (user, ELoginResponse.Success);
+            StoreUserToDisk(user);
+			return user;
 		}
 
 		/// <summary>
 		/// Send a register request. Will automatically login afterwards. Do note that a validation email is not
 		/// send automatically. You have to call the specific function for it after registering.
 		/// </summary>
-		public async UniTask<(User, ERegisterResponse)> Register(string id, string name, string email, string password)
+		public async UniTask<User> Register(string id, string name, string email, string password)
 		{
 			if (!WebUtilities.IsEmailValid(email))
-				return (null, ERegisterResponse.InvalidEmail);
+				throw new AppwriteException("Invalid Email", ErrorType.InvalidEmail);
 				
 			if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(name) || string.IsNullOrEmpty(email))
-				return (null, ERegisterResponse.MissingCredentials);
+				throw new AppwriteException("Missing credentials", ErrorType.MissingCredentials);
 
-			if (user != null)
-				return (user, ERegisterResponse.AlreadyLoggedIn);
+			if (userIdentity.GetUser() != null)
+				return userIdentity.GetUser();
 
-			if ((DateTime.Now - lastRegisterRequestDate).Duration().TotalMinutes < config.RegisterTimeoutMinutes)
-				return (null, ERegisterResponse.Timeout);
+            if ((DateTime.Now - lastRegisterRequestDate).Duration().TotalMinutes < config.RegisterTimeoutMinutes)
+				throw new AppwriteException("Timeout", ErrorType.Timeout);
 
 			JObject obj = new JObject(
 				new JProperty("userId", id),
@@ -180,35 +142,12 @@ namespace Lowscope.AppwritePlugin.Accounts
 
 			string url = $"{config.AppwriteURL}/account";
 
-			using var request = new WebRequest(EWebRequestType.POST, url, headers, user?.Cookie, bytes);
+			using var request = new WebRequest(EWebRequestType.POST, url, headers, userIdentity.GetUser()?.Cookie, bytes);
 
-			var (body, httpStatusCode) = await request.Send();
+			var body = await request.Send();
 
-			if (httpStatusCode != HttpStatusCode.Created)
-			{
-				switch (httpStatusCode)
-				{
-					case 0:
-						return (null, ERegisterResponse.NoConnection);
-					case HttpStatusCode.Unauthorized:
-						return (null, ERegisterResponse.Failed);
-					case HttpStatusCode.ServiceUnavailable
-						or HttpStatusCode.GatewayTimeout
-						or HttpStatusCode.InternalServerError
-						or HttpStatusCode.TooManyRequests:
-						return (null, ERegisterResponse.ServerBusy);
-					case HttpStatusCode.BadRequest:
-						if (body.Contains("Invalid email"))
-							return (null, ERegisterResponse.InvalidEmail);
-						break;
-				}
-				
-				Debug.Log($"Unimplemented: {httpStatusCode} {body}");
-				return (null, ERegisterResponse.Failed);
-			}
-
-			var (u, _) = await Login(email, password);
-			return (u, ERegisterResponse.Success);
+			var user = await Login(email, password);
+			return user;
 		}
 
 		/// <summary>
@@ -217,12 +156,12 @@ namespace Lowscope.AppwritePlugin.Accounts
 		/// <returns></returns>
 		public async UniTask<bool> Logout()
 		{
-			if (user == null)
+			if (userIdentity.GetUser() == null)
 				return false;
 
 			// Remove current session
 			string url = $"{config.AppwriteURL}/account/sessions/current";
-			using var request = new WebRequest(EWebRequestType.DELETE, url, headers, user.Cookie);
+			using var request = new WebRequest(EWebRequestType.DELETE, url, headers, userIdentity.GetUser().Cookie);
 			await request.Send();
 
 			ClearUserDataFromDisk();
@@ -235,27 +174,24 @@ namespace Lowscope.AppwritePlugin.Accounts
 		/// </summary>
 		public async UniTask<string> ObtainJwt(bool fromCache = true)
 		{
-			if (user == null)
+			if (userIdentity.GetUser() == null)
 				return "";
 
-			if (fromCache && !string.IsNullOrEmpty(user.Jwt))
-				if ((DateTime.Now - user.JwtProvideDate).Duration().TotalMinutes < config.JwtExpireMinutes)
-					return user.Jwt;
+			if (fromCache && !string.IsNullOrEmpty(userIdentity.GetUser().Jwt))
+				if ((DateTime.Now - userIdentity.GetUser().JwtProvideDate).Duration().TotalMinutes < config.JwtExpireMinutes)
+					return userIdentity.GetUser().Jwt;
 
 			string url = $"{config.AppwriteURL}/account/jwt";
-			using var request = new WebRequest(EWebRequestType.POST, url, headers, user.Cookie);
-			var (json, httpStatusCode) = await request.Send();
-
-			if (httpStatusCode != HttpStatusCode.Created)
-				return "";
+			using var request = new WebRequest(EWebRequestType.POST, url, headers, userIdentity.GetUser().Cookie);
+			var json = await request.Send();
 
 			JObject parsedData = JObject.Parse(json);
 
 			string jwt = (string)parsedData.GetValue("jwt");
-			user.Jwt = jwt;
+            userIdentity.GetUser().Jwt = jwt;
 
-			// Remove minute to account for latency.
-			user.JwtProvideDate = DateTime.Now - TimeSpan.FromMinutes(1);
+            // Remove minute to account for latency.
+            userIdentity.GetUser().JwtProvideDate = DateTime.Now - TimeSpan.FromMinutes(1);
 
 			return jwt;
 		}
@@ -264,41 +200,58 @@ namespace Lowscope.AppwritePlugin.Accounts
 		/// Sends a verification mail to the user. Provided with the url that is set in the config file.
 		/// Read more about verification emails in the Appwrite documentation.
 		/// </summary>
-		public async UniTask<EEmailVerifyResponse> RequestVerificationMail()
+		public async UniTask<bool> RequestVerificationMail()
 		{
-			if (user == null)
-				return EEmailVerifyResponse.NotLoggedIn;
+			if (userIdentity.GetUser() == null)
+				throw new AppwriteException("Not logged in.", ErrorType.NotLoggedIn);
 
-			if (user.EmailVerified)
-				return EEmailVerifyResponse.AlreadyVerified;
+			if (userIdentity.GetUser().EmailVerified)
+				throw new AppwriteException("Already Verified", ErrorType.AlreadyVerified);
 
-			if (user.LastEmailRequestDate != default &&
-			    (DateTime.Now - user.LastEmailRequestDate).Duration().TotalMinutes < config.VerifyEmailTimeoutMinutes)
-				return EEmailVerifyResponse.Timeout;
+			if (userIdentity.GetUser().LastEmailRequestDate != default &&
+			    (DateTime.Now - userIdentity.GetUser().LastEmailRequestDate).Duration().TotalMinutes < config.VerifyEmailTimeoutMinutes)
+				throw new AppwriteException("Timeout", ErrorType.Timeout);
 
 			if (string.IsNullOrEmpty(config.VerifyEmailURL))
-				return EEmailVerifyResponse.NoURLSpecified;
+				throw new AppwriteException("No URL Specified", ErrorType.NoURLSpecified);
 
 			JObject obj = new JObject(new JProperty("url", config.VerifyEmailURL));
 			byte[] bytes = Encoding.UTF8.GetBytes(obj.ToString());
 
 			string url = $"{config.AppwriteURL}/account/verification";
-			using var request = new WebRequest(EWebRequestType.POST, url, headers, user.Cookie, bytes);
-			var (json, httpStatusCode) = await request.Send();
-			
-			// Session has become invalid, not able to utilize session anymore.
-			switch (httpStatusCode)
+			using var request = new WebRequest(EWebRequestType.POST, url, headers, userIdentity.GetUser().Cookie, bytes);
+
+			try
 			{
-				case HttpStatusCode.Unauthorized:
-				case HttpStatusCode.NotFound:
+				var json = await request.Send();
+			} catch (AppwriteException e)
+			{
+				if (e.ResponseCode != 0)
+				{
 					ClearUserDataFromDisk();
-					return EEmailVerifyResponse.NotLoggedIn;
-			}
+					throw new AppwriteException("Not Logged it", ErrorType.NotLoggedIn);
+				} else
+				{
+					throw e;
+				}
 
-			user.LastEmailRequestDate = DateTime.Now;
-			StoreUserToDisk();
+                
+            }
 
-			return httpStatusCode == HttpStatusCode.Created ? EEmailVerifyResponse.Sent : EEmailVerifyResponse.Failed;
+			// Session has become invalid, not able to utilize session anymore.
+			//switch (httpStatusCode)
+			//{
+			//	case HttpStatusCode.Unauthorized:
+			//	case HttpStatusCode.NotFound:
+			//		ClearUserDataFromDisk();
+			//		return EEmailVerifyResponse.NotLoggedIn;
+			//}
+
+			User user = userIdentity.GetUser();
+            user.LastEmailRequestDate = DateTime.Now;
+			StoreUserToDisk(user);
+
+			return true;
 		}
 
 		/// <summary>
@@ -309,55 +262,50 @@ namespace Lowscope.AppwritePlugin.Accounts
 		/// <returns></returns>
 		public async UniTask<User> GetUser(bool fromServer = false)
 		{
-			if (user == null)
+			if (userIdentity.GetUser() == null)
 				return null;
 
 			if (!fromServer)
-				return user;
+				return userIdentity.GetUser();
 
 			if (await RequestUserInfo())
-				return user;
+				return userIdentity.GetUser();
 
 			return null;
 		}
 
-		public async UniTask<(User, ELoginResponse)> CreateAnonymousSession()
+		public async UniTask<User> CreateAnonymousSession()
 		{
 			ReadUserData();
 
-			if (user != null) return (user, ELoginResponse.AlreadyLoggedIn);
+			if (userIdentity.GetUser() != null) return userIdentity.GetUser();
 
 
             string url = $"{config.AppwriteURL}/account/sessions/anonymous";
 
-            using var request = new WebRequest(EWebRequestType.POST, url, headers, user?.Cookie);
+            using var request = new WebRequest(EWebRequestType.POST, url, headers, userIdentity.GetUser()?.Cookie);
 			request.SetTimeout(30);
 
-            var (body, httpStatusCode) = await request.Send();
-
-            if (httpStatusCode != HttpStatusCode.Created)
-            {
-				ProcessHttpStatusCode(httpStatusCode);
-
-                return (null, ELoginResponse.Failed);
-            }
+            var body = await request.Send();
 
             JObject parsedData = JObject.Parse(body);
 
-            user = new User
+            User user = new User
             {
                 Id = (string)parsedData.GetValue("userId"),
                 Email = (string)parsedData.GetValue("providerUid"),
                 Cookie = request.ExtractCookie()
             };
+			
+			StoreUserToDisk(user);
 
-            // Attempts to get account info to fill in additional user data such as 
-            // If email is verified and Name.
-            if (!await RequestUserInfo())
-                return (null, ELoginResponse.Failed);
+			// Attempts to get account info to fill in additional user data such as 
+			// If email is verified and Name.
+			if (!await RequestUserInfo())
+                throw new AppwriteException("Creating anonymous session failed", ErrorType.Failed);
 
-            StoreUserToDisk();
-            return (user, ELoginResponse.Success);
+
+            return user;
         }
     }
 }

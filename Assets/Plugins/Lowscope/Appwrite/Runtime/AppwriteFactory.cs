@@ -1,23 +1,44 @@
 ﻿using System;
 using Lowscope.AppwritePlugin.Accounts;
+using Lowscope.AppwritePlugin.Identity;
 
 namespace Lowscope.AppwritePlugin
 {
     public class AppwriteFactory
     {
-        public static Storage.Storage GetStorage(AppwriteConfig config)
+        private static AppwriteFactory _instance;
+
+        public static AppwriteFactory Instance
         {
-            return new Storage.Storage(config);
+            get
+            {
+                if (_instance == null)
+                {
+                    _instance = new AppwriteFactory();
+                }
+                return _instance;
+            }
         }
 
-        public static Account GetAccount(AppwriteConfig config)
+        private AppwriteFactory()
         {
-            return new Account(config);
         }
 
-        public static Database.Database GetDatabase(AppwriteConfig config)
+        public IUserIdentity UserIdentity {get; set;}
+
+        public Storage.Storage GetStorage(AppwriteConfig config)
         {
-            return new Database.Database(config);
+            return new Storage.Storage(config, UserIdentity);
+        }
+
+        public Account GetAccount(AppwriteConfig config)
+        {
+            return new Account(config, UserIdentity);
+        }
+
+        public Database.Database GetDatabase(AppwriteConfig config)
+        {
+            return new Database.Database(config, UserIdentity);
         }
     }
 }

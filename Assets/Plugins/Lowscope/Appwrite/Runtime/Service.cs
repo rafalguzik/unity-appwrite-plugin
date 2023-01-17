@@ -5,6 +5,7 @@ using Lowscope.AppwritePlugin.Accounts.Model;
 using Lowscope.AppwritePlugin.Utils;
 using UnityEngine;
 using System.Net;
+using Lowscope.AppwritePlugin.Identity;
 
 namespace Lowscope.AppwritePlugin
 {
@@ -13,13 +14,12 @@ namespace Lowscope.AppwritePlugin
         protected AppwriteConfig config;
         protected readonly Dictionary<string, string> headers;
 
-        protected User user;
+        protected IUserIdentity userIdentity;
 
-        protected string UserPath => Path.Combine(Application.persistentDataPath, "user.json");
-
-        internal Service(AppwriteConfig config)
+        internal Service(AppwriteConfig config, IUserIdentity userIdentity)
 	    {
             this.config = config;
+            this.userIdentity = userIdentity;
 
             headers = new Dictionary<string, string>(new Dictionary<string, string>
                 {
@@ -33,27 +33,13 @@ namespace Lowscope.AppwritePlugin
         protected void ReadUserData()
         {
             // Fetches user info written to disk.
-            user = FileUtilities.Read<User>(UserPath, config);
+            userIdentity.GetUser(true);
         }
 
-        public void SetUser(User user)
-        {
-            this.user = user;
-        }
-
-        protected void ProcessHttpStatusCode(HttpStatusCode code, string message = "")
-        {
-            switch (code)
-            {
-                case 0:
-                    throw new AppwriteException(AppwriteException.Error.UnknownError, message);
-                case HttpStatusCode.Unauthorized:
-                    throw new AppwriteException(AppwriteException.Error.NotAuthorized, message);
-                case HttpStatusCode.NotFound:
-                    throw new AppwriteException(AppwriteException.Error.NotFound, message);
-
-            }
-        } 
+        //public void SetUser(User user)
+        //{
+        //    userIdentity.StoreUserIdentity(user);
+        //}
     }
 }
 

@@ -1,5 +1,6 @@
 using System;
 using Lowscope.AppwritePlugin.Accounts;
+using Lowscope.AppwritePlugin.Identity;
 using UnityEngine;
 
 namespace Lowscope.AppwritePlugin
@@ -43,7 +44,8 @@ namespace Lowscope.AppwritePlugin
 
 		private void Awake()
 		{
-			account = new Account(config);
+			IUserIdentity userIdentity = new EncryptedFileUserIdentity(config);
+			account = new Account(config, userIdentity);
 		}
 
 		public static Account Account => instance.account;

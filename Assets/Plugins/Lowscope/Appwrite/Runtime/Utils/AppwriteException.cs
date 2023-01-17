@@ -4,24 +4,22 @@ namespace Lowscope.AppwritePlugin.Utils
 {
     public class AppwriteException : Exception
     {
-        public enum Error
+        public AppwriteException(string message, ErrorType errorType) : base(message)
         {
-            NotAuthorized,
-            NotFound,
-            UnknownError
+            this.errorType = errorType;
         }
 
-        private Error _error;
-
-        public AppwriteException(Error error, string? message) : base(message)
+        public AppwriteException(string message, Exception innerException) : base(message, innerException)
         {
-            _error = error;
         }
 
-        public AppwriteException(Error error): base(error.ToString())
+        public AppwriteException(string message, long responseCode) : base(message)
         {
-            _error = error;
+            ResponseCode = responseCode;
         }
+
+        public long ResponseCode { get; }
+        public ErrorType errorType { get; }
     }
 }
 

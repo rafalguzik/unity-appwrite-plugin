@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Net;
 using Cysharp.Threading.Tasks;
-using Lowscope.AppwritePlugin.Accounts.Enums;
 using UnityEngine.Networking;
 
 namespace Lowscope.AppwritePlugin.Utils
@@ -47,28 +46,32 @@ namespace Lowscope.AppwritePlugin.Utils
 				webRequest?.SetRequestHeader("Cookie", cookie);
 		}
 
-		public async UniTask<(string, HttpStatusCode)> Send()
+		public async UniTask<string> Send()
 		{
 			try
 			{
 				await webRequest.SendWebRequest();
 				var responseCode = (int)webRequest.responseCode;
 
-				if (requestType == EWebRequestType.DELETE) 
-					return ("", HttpStatusCode.OK);
+                if (webRequest.result != UnityWebRequest.Result.Success)
+                {
+                    throw new AppwriteException("Encountered an error during Send operation: " + webRequest.result + " code=" + webRequest.responseCode, webRequest.responseCode);
+                }
+
+                if (requestType == EWebRequestType.DELETE)
+					return "";
 						
 				string text = webRequest?.downloadHandler.text;
-				return (text, (HttpStatusCode)responseCode);
+				return text;
 
 			}
 			catch (UnityWebRequestException exception)
 			{
-				string text = webRequest?.downloadHandler?.text;
-				return (text, (HttpStatusCode)exception.ResponseCode);
-			}
+				throw new AppwriteException("Encountered an error during Send operation", exception);
+            }
 		}
 
-		public async UniTask<HttpStatusCode> Download(string path, Action<ulong> progressCallback)
+		public async UniTask<bool> Download(string path, Action<ulong> progressCallback)
 		{
             try
             {
@@ -84,17 +87,19 @@ namespace Lowscope.AppwritePlugin.Utils
 					await UniTask.Delay(100);
 				}
 
+				if (webRequest.result != UnityWebRequest.Result.Success)
+				{
+					throw new AppwriteException("Encountered an error during Download operation: " + webRequest.result + " code=" + webRequest.responseCode, webRequest.responseCode);
+				}
+
                 var responseCode = (int)webRequest.responseCode;
 
-				if (requestType == EWebRequestType.DELETE)
-					return HttpStatusCode.OK;
-
-                return (HttpStatusCode)responseCode;
+				return true;
 
             }
             catch (UnityWebRequestException exception)
             {
-                return (HttpStatusCode)exception.ResponseCode;
+				throw new AppwriteException("Encountered an error during Download operation", exception);
             }
         }
 
