@@ -2,10 +2,25 @@
 
 **Still in early development. Not yet battle tested.**
 
+### Changes in this fork
+**This repository is a fork of [https://github.com/AlexMeesters/unity-appwrite-plugin](https://github.com/AlexMeesters/unity-appwrite-plugin)**
+
+Changes regarding forked repo
+
+ - listing documents in database
+ - getting file information from storage
+ - downloading a file from storage
+ - changed error handling from error codes to exceptions
+ - added AppwriteFactory to initalize all data access classes - should work well with IoC systems
+ - abstracted a way to store user information (login and session cookie etc.) so it's possible to use other storages than encrypted file
+
+---
+
 So far the Unity plugin for Appwrite supports some of the account features. \
 It stores the session cookie automatically for you, meaning you keep your session even upon restart.
 
 Current features
+
  - Login
  - Get user information
  - Get JWT token
@@ -50,7 +65,7 @@ Go to the package manager and locate TextMeshPro and install it.
 
 ## Easy install using the Unity Package Manager
 ```
-https://github.com/AlexMeesters/unity-appwrite-plugin.git?path=Assets/Plugins/Lowscope/Appwrite
+https://github.com/rafalguzik/unity-appwrite-plugin.git?path=Assets/Plugins/Lowscope/Appwrite
 ```
 
 ## 

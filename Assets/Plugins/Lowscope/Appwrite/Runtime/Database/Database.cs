@@ -11,6 +11,8 @@ using WebRequest = Lowscope.AppwritePlugin.Utils.WebRequest;
 using Newtonsoft.Json;
 using Lowscope.AppwritePlugin.Utils;
 using Lowscope.AppwritePlugin.Identity;
+using System.Collections.Specialized;
+using System.Web;
 
 namespace Lowscope.AppwritePlugin.Database
 {
@@ -26,13 +28,38 @@ namespace Lowscope.AppwritePlugin.Database
             string url = $"{config.AppwriteURL}/databases/{{databaseId}}/collections/{{collectionId}}/documents"
                 .Replace("{databaseId}", databaseId).Replace("{collectionId}", collectionId);
 
+            if (query != null)
+            {
+                NameValueCollection queryParams = HttpUtility.ParseQueryString(String.Empty);
+                foreach( string qValue in query)
+                {
+                    queryParams.Add("queries[]", qValue);
+                }
+
+                url += "?" + queryParams.ToString();
+            }
+
+
+
             using var request = new WebRequest(EWebRequestType.GET, url, headers, userIdentity.GetUser()?.Cookie);
             request.SetTimeout(30);
-            var json = await request.Send();
 
-            var jsonObj = JObject.Parse(json);
+            try
+            {
+                var json = await request.Send();
 
-            return jsonObj;
+            
+                var jsonObj = JObject.Parse(json);
+                return jsonObj;
+            } catch (JsonReaderException e)
+            {
+                throw new AppwriteException("Could not parse response as json", e);
+            } catch (UnityWebRequestException e)
+            {
+                throw new AppwriteException("Request exception", e);
+            }
+
+            
         }
 
         public void GetDocument(string databaseId, string collectionId, string documentId)

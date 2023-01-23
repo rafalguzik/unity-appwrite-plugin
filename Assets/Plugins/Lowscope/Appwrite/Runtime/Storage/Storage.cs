@@ -22,28 +22,34 @@ namespace Lowscope.AppwritePlugin.Storage
             string url = $"{config.AppwriteURL}/storage/buckets/{{bucketId}}/files/{{fileId}}"
                 .Replace("{bucketId}", bucketId).Replace("{fileId}", fileId);
 
-            using var request = new WebRequest(EWebRequestType.GET, url, headers, userIdentity.GetUser()?.Cookie);
-            request.SetTimeout(30);
-            var json = await request.Send();
-
-            var jsonObj = JObject.Parse(json);
-            FileInfo file = new FileInfo()
+            try
             {
-                Id = (string)jsonObj.GetValue("$id"),
-                BucketId = (string)jsonObj.GetValue("bucketId"),
-                CreatedAt = (string)jsonObj.GetValue("$createdAt"),
-                UpdatedAt = (string)jsonObj.GetValue("$updatedAt"),
-                Permissions = jsonObj.Value<JArray>("$permissions").ToObject<string[]>(),
-                Name = (string)jsonObj.GetValue("name"),
-                Signature = (string)jsonObj.GetValue("signature"),
-                MimeType = (string)jsonObj.GetValue("mimeType"),
-                SizeTotal = (ulong)jsonObj.GetValue("sizeOriginal"),
-                ChunksTotal = (ulong)jsonObj.GetValue("chunksTotal"),
-                ChunksUploaded = (ulong)jsonObj.GetValue("chunksUploaded")
+                using var request = new WebRequest(EWebRequestType.GET, url, headers, userIdentity.GetUser()?.Cookie);
+                request.SetTimeout(30);
+                var json = await request.Send();
 
-            };
+                var jsonObj = JObject.Parse(json);
+                FileInfo file = new FileInfo()
+                {
+                    Id = (string)jsonObj.GetValue("$id"),
+                    BucketId = (string)jsonObj.GetValue("bucketId"),
+                    CreatedAt = (string)jsonObj.GetValue("$createdAt"),
+                    UpdatedAt = (string)jsonObj.GetValue("$updatedAt"),
+                    Permissions = jsonObj.Value<JArray>("$permissions").ToObject<string[]>(),
+                    Name = (string)jsonObj.GetValue("name"),
+                    Signature = (string)jsonObj.GetValue("signature"),
+                    MimeType = (string)jsonObj.GetValue("mimeType"),
+                    SizeTotal = (ulong)jsonObj.GetValue("sizeOriginal"),
+                    ChunksTotal = (ulong)jsonObj.GetValue("chunksTotal"),
+                    ChunksUploaded = (ulong)jsonObj.GetValue("chunksUploaded")
 
-            return file;
+                };
+
+                return file;
+            } catch (UnityWebRequestException e)
+            {
+                throw new AppwriteException("Request exception", e); 
+            }
 
         }
 
