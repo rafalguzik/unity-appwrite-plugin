@@ -67,7 +67,7 @@ namespace Lowscope.AppwritePlugin.Utils
 			}
 			catch (UnityWebRequestException exception)
 			{
-				throw new AppwriteException("Encountered an error during Send operation", exception);
+				throw new AppwriteException("Encountered an error during Send operation: " + exception.Message, exception);
             }
 		}
 
