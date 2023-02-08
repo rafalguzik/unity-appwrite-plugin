@@ -10,6 +10,8 @@ namespace Lowscope.AppwritePlugin.Identity
         public void ClearUserIdentity();
 
         public User GetUser(bool readFromPresistentStorage = false);
+
+        public bool IsAnonymous();
     }
 }
 

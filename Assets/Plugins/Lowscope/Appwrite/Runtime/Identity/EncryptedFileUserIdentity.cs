@@ -40,6 +40,11 @@ namespace Lowscope.AppwritePlugin.Identity
             }
             return user;
         }
+
+        public bool IsAnonymous()
+        {
+            return string.IsNullOrEmpty(user.Email);
+        }
     }
 }
 

@@ -31,6 +31,9 @@ namespace Lowscope.AppwritePlugin.Utils
 				case EWebRequestType.PUT:
 					webRequest = UnityWebRequest.Put(url, data);
 					break;
+				case EWebRequestType.PATCH:
+					webRequest = new UnityWebRequest(url, "PATCH", new DownloadHandlerBuffer(), new UploadHandlerRaw(data));
+					break;
 				case EWebRequestType.DELETE:
 					webRequest = UnityWebRequest.Delete(url);
 					break;

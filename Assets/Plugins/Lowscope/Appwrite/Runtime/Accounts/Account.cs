@@ -307,5 +307,59 @@ namespace Lowscope.AppwritePlugin.Accounts
 
             return user;
         }
+
+		public async UniTask<User> ConvertAnonymousUser(string email, string password)
+		{
+			ReadUserData();
+
+            if (!WebUtilities.IsEmailValid(email))
+                throw new AppwriteException("Invalid Email", ErrorType.InvalidEmail);
+
+            if (string.IsNullOrEmpty(password) || string.IsNullOrEmpty(email))
+                throw new AppwriteException("Missing credentials", ErrorType.MissingCredentials);
+
+			if (password.Length < 8)
+			{
+				throw new AppwriteException("Password too short", ErrorType.MissingCredentials);
+			}
+
+
+			string url = $"{config.AppwriteURL}/account/email";
+
+			JObject obj = new JObject(
+				new JProperty("email", email),
+				new JProperty("password", password)
+			);
+
+            byte[] bytes = Encoding.UTF8.GetBytes(obj.ToString());
+
+
+			using var request = new WebRequest(EWebRequestType.PATCH, url, headers, userIdentity.GetUser()?.Cookie, bytes);
+			request.SetTimeout(30);
+
+            var body = await request.Send();
+
+            JObject parsedData = JObject.Parse(body);
+
+			Debug.Log("{ConvertAnonymousUser} response: " + parsedData);
+
+            var user = await Login(email, password);
+			return user;
+
+            //User user = new User
+            //{
+            //    Id = (string)parsedData.GetValue("userId"),
+            //    Email = (string)parsedData.GetValue("providerUid"),
+            //    Cookie = request.ExtractCookie()
+            //};
+
+            //// Attempts to get account info to fill in additional user data such as 
+            //// If email is verified and Name.
+            //if (!await RequestUserInfo())
+            //    throw new AppwriteException("Login Failed", ErrorType.Failed);
+
+            //StoreUserToDisk(user);
+            //return user;
+        }
     }
 }
