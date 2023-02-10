@@ -67,22 +67,22 @@ namespace Lowscope.AppwritePlugin.Utils
 
 		public static string OrderAsc(string attribute)
 		{
-			return "orderAsc(\n" + attribute + "\")";
+			return "orderAsc(\"" + attribute + "\")";
 		}
 
         public static string OrderDesc(string attribute)
         {
-            return "orderDesc(\n" + attribute + "\")";
+            return "orderDesc(\"" + attribute + "\")";
         }
 
         public static string Limit(int limit)
         {
-            return "limit(\n" + limit + "\")";
+            return "limit(\"" + limit + "\")";
         }
 
 		public static string Offset(int offset)
 		{
-			return "offset(\n" + offset + "\")";
+			return "offset(\"" + offset + "\")";
         }
 
         private static string AddQuery(string attribute, string method, string[] values)
