@@ -14,5 +14,10 @@ namespace Lowscope.AppwritePlugin.Accounts.Model
 
 		[JsonIgnore] public string Jwt { get; set; }
 		[JsonIgnore] public DateTime JwtProvideDate { get; set; }
+
+		override public string ToString()
+		{
+			return $"[id={Id},name={Name},email={Email}]"; 
+		}
 	}
 }

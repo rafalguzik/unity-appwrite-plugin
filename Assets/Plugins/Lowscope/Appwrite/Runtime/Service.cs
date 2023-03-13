@@ -26,20 +26,12 @@ namespace Lowscope.AppwritePlugin
                     { "X-Appwrite-Project", config.AppwriteProjectID },
                     { "Content-Type", "application/json" }
                 });
-
-            //ReadUserData();
         }
 
         protected void ReadUserData()
         {
-            // Fetches user info written to disk.
             userIdentity.GetUser(true);
         }
-
-        //public void SetUser(User user)
-        //{
-        //    userIdentity.StoreUserIdentity(user);
-        //}
     }
 }
 

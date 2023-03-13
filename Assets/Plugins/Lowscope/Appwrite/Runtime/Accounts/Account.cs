@@ -1,12 +1,16 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.IO;
 using System.Net;
 using System.Text;
+using System.Threading.Tasks;
 using Cysharp.Threading.Tasks;
+using Google.MiniJSON;
 using Lowscope.AppwritePlugin.Accounts.Model;
 using Lowscope.AppwritePlugin.Identity;
 using Lowscope.AppwritePlugin.Utils;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
 using UnityEngine.XR;
@@ -60,7 +64,9 @@ namespace Lowscope.AppwritePlugin.Accounts
 			JObject parsedData = JObject.Parse(json);
 
 			User user = userIdentity.GetUser();
+			user.Id = (string)parsedData.GetValue("$id");
 			user.Name = (string)parsedData.GetValue("name");
+			user.Email = (string)parsedData.GetValue("email");
 			user.EmailVerified = (bool)parsedData.GetValue("emailVerification");
 			StoreUserToDisk(user);
 
@@ -105,12 +111,13 @@ namespace Lowscope.AppwritePlugin.Accounts
 				Cookie = request.ExtractCookie()
 			};
 
-			// Attempts to get account info to fill in additional user data such as 
-			// If email is verified and Name.
-			if (!await RequestUserInfo())
+            StoreUserToDisk(user);
+
+            // Attempts to get account info to fill in additional user data such as 
+            // If email is verified and Name.
+            if (!await RequestUserInfo())
                 throw new AppwriteException("Login Failed", ErrorType.Failed);
 
-            StoreUserToDisk(user);
 			return user;
 		}
 
@@ -308,6 +315,9 @@ namespace Lowscope.AppwritePlugin.Accounts
             return user;
         }
 
+		/**
+		 * WIP
+		 */
 		public async UniTask<User> ConvertAnonymousUser(string email, string password)
 		{
 			ReadUserData();
@@ -343,23 +353,81 @@ namespace Lowscope.AppwritePlugin.Accounts
 
 			Debug.Log("{ConvertAnonymousUser} response: " + parsedData);
 
-            var user = await Login(email, password);
-			return user;
+            //var user = await Login(email, password);
 
-            //User user = new User
-            //{
-            //    Id = (string)parsedData.GetValue("userId"),
-            //    Email = (string)parsedData.GetValue("providerUid"),
-            //    Cookie = request.ExtractCookie()
-            //};
+            await RequestUserInfo();
+            return userIdentity.GetUser();
+        }
 
-            //// Attempts to get account info to fill in additional user data such as 
-            //// If email is verified and Name.
-            //if (!await RequestUserInfo())
-            //    throw new AppwriteException("Login Failed", ErrorType.Failed);
+		/**
+		 *  Attaches current anonymous session to an Oauth Login. Currently tested only with Sign In With Apple.
+		 */
+		public async UniTask<User> ConvertAnonymousUserWithOAuth(string provider, string code)
+		{
+			ReadUserData();
 
-            //StoreUserToDisk(user);
-            //return user;
+			Dictionary<string, string> stateParam = new Dictionary<string, string>();
+			stateParam.Add("success", $"{config.AppwriteURL}/account/sessions/current");
+			stateParam.Add("failure", "");
+
+            string url = $"{config.AppwriteURL}/account/sessions/oauth2/callback/{provider}/{config.AppwriteProjectID}";
+
+            NameValueCollection queryString = System.Web.HttpUtility.ParseQueryString(string.Empty);
+			queryString.Add("code", code);
+			queryString.Add("state", JsonConvert.SerializeObject(stateParam));
+
+			url += "?" + queryString.ToString();
+
+            using var request = new WebRequest(EWebRequestType.GET, url, headers, userIdentity.GetUser()?.Cookie);
+			request.SetTimeout(30);
+			
+			var body = await request.Send();
+
+			User user = new User();
+			user.Cookie = request.ExtractCookie();
+			userIdentity.StoreUserIdentity(user);
+
+            await RequestUserInfo();
+			return userIdentity.GetUser();
+        }
+
+		public async UniTask<JObject> GetCurrentSession()
+		{
+            string url = $"{config.AppwriteURL}/account/sessions/current";
+
+            using var request = new WebRequest(EWebRequestType.GET, url, headers, userIdentity.GetUser()?.Cookie);
+            request.SetTimeout(30);
+
+            var body = await request.Send();
+
+            var json = JObject.Parse(body);
+            return json;
+        }
+
+		public async UniTask<JObject> GetSessions()
+		{
+            string url = $"{config.AppwriteURL}/account/sessions";
+
+            using var request = new WebRequest(EWebRequestType.GET, url, headers, userIdentity.GetUser()?.Cookie);
+            request.SetTimeout(30);
+
+            var body = await request.Send();
+
+            var json = JObject.Parse(body);
+            return json;
+        }
+
+
+        public async UniTask<string> GetAccount()
+        {
+            string url = $"{config.AppwriteURL}/account";
+
+            using var request = new WebRequest(EWebRequestType.GET, url, headers, userIdentity.GetUser()?.Cookie);
+            request.SetTimeout(30);
+
+            var body = await request.Send();
+
+            return body;
         }
     }
 }
