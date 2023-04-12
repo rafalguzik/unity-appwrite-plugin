@@ -362,13 +362,23 @@ namespace Lowscope.AppwritePlugin.Accounts
 		/**
 		 *  Attaches current anonymous session to an Oauth Login. Currently tested only with Sign In With Apple.
 		 */
-		public async UniTask<User> ConvertAnonymousUserWithOAuth(string provider, string code)
+		public async UniTask<User> ConvertAnonymousUserWithOAuth(string provider, string code, string successUrl = null, string failureUrl = null, bool limitRedirects = false)
 		{
 			ReadUserData();
 
 			Dictionary<string, string> stateParam = new Dictionary<string, string>();
-			stateParam.Add("success", $"{config.AppwriteURL}/account/sessions/current");
-			stateParam.Add("failure", "");
+
+			if (string.IsNullOrEmpty(successUrl))
+			{
+				successUrl = $"{config.AppwriteURL}/account/sessions/current";
+			}
+			stateParam.Add("success", successUrl);
+
+			if (string.IsNullOrEmpty(failureUrl))
+			{
+				failureUrl = "";
+			}
+			stateParam.Add("failure", failureUrl);
 
             string url = $"{config.AppwriteURL}/account/sessions/oauth2/callback/{provider}/{config.AppwriteProjectID}";
 
@@ -380,8 +390,21 @@ namespace Lowscope.AppwritePlugin.Accounts
 
             using var request = new WebRequest(EWebRequestType.GET, url, headers, userIdentity.GetUser()?.Cookie);
 			request.SetTimeout(30);
-			
-			var body = await request.Send();
+			request.SetRedirectLimit(1);
+
+			try
+			{
+				var body = await request.Send();
+			} catch (AppwriteException e)
+			{
+
+				if (!limitRedirects ||
+					!(e.GetBaseException() is UnityWebRequestException) ||
+					((UnityWebRequestException)e.GetBaseException()).Message != "Redirect limit exceeded")
+				{
+					throw e;
+				}
+			}
 
 			User user = new User();
 			user.Cookie = request.ExtractCookie();
