@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Net;
 using Cysharp.Threading.Tasks;
-using UnityEngine;
 using UnityEngine.Networking;
 
 namespace Lowscope.AppwritePlugin.Utils
@@ -47,7 +46,7 @@ namespace Lowscope.AppwritePlugin.Utils
 				webRequest?.SetRequestHeader(key, value);
 
 			if (!string.IsNullOrEmpty(cookie))
-				webRequest?.SetRequestHeader("X-Fallback-Cookies", cookie);
+				webRequest?.SetRequestHeader("Cookie", cookie);
 		}
 
 		public async UniTask<string> Send()
@@ -114,15 +113,10 @@ namespace Lowscope.AppwritePlugin.Utils
 
 		public string ExtractCookie()
 		{
-			//return webRequest.GetResponseHeaders().TryGetValue("Set-Cookie", out string cookie)
-			//	? cookie[..cookie.IndexOf(" expires=", StringComparison.InvariantCulture)]
-			//	: "";
-
-			return webRequest.GetResponseHeaders().TryGetValue("X-Fallback-Cookies", out string cookie)
-				? cookie
+			return webRequest.GetResponseHeaders().TryGetValue("Set-Cookie", out string cookie)
+				? cookie[..cookie.IndexOf(" expires=", StringComparison.InvariantCulture)]
 				: "";
-
-        }
+		}
 
 		public float GetDownloadProgress()
 		{
@@ -132,11 +126,6 @@ namespace Lowscope.AppwritePlugin.Utils
 		public void SetTimeout(int timeout)
 		{
 			webRequest.timeout = timeout;
-		}
-
-		public void SetRedirectLimit(int limit)
-		{
-			webRequest.redirectLimit = limit;
 		}
 	}
 }
