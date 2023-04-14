@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Net;
 using Cysharp.Threading.Tasks;
@@ -127,5 +127,11 @@ namespace Lowscope.AppwritePlugin.Utils
 		{
 			webRequest.timeout = timeout;
 		}
+
+		public void SetRedirectLimit(int limit)
+		{
+			webRequest.redirectLimit = limit;
+		}
+
 	}
 }
