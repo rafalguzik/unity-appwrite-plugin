@@ -36,7 +36,7 @@ namespace Lowscope.AppwritePlugin.Database
                     queryParams.Add("queries[]", qValue);
                 }
 
-                url += "?" + queryParams.ToString();
+                url += "?" + ToHttpQueryString(queryParams);
             }
 
 

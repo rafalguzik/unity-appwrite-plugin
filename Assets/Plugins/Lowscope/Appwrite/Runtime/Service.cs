@@ -6,6 +6,8 @@ using Lowscope.AppwritePlugin.Utils;
 using UnityEngine;
 using System.Net;
 using Lowscope.AppwritePlugin.Identity;
+using System.Collections.Specialized;
+using System.Text;
 
 namespace Lowscope.AppwritePlugin
 {
@@ -31,6 +33,30 @@ namespace Lowscope.AppwritePlugin
         protected void ReadUserData()
         {
             userIdentity.GetUser(true);
+        }
+
+        protected string ToHttpQueryString(NameValueCollection nvc)
+        {
+            StringBuilder sb = new StringBuilder("?");
+
+            bool first = true;
+
+            foreach (string key in nvc.AllKeys)
+            {
+                foreach (string value in nvc.GetValues(key))
+                {
+                    if (!first)
+                    {
+                        sb.Append("&");
+                    }
+
+                    sb.AppendFormat("{0}={1}", Uri.EscapeDataString(key), Uri.EscapeDataString(value));
+
+                    first = false;
+                }
+            }
+
+            return sb.ToString();
         }
     }
 }
