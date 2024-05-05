@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using Google.MiniJSON;
 using System.Net;
 using Lowscope.AppwritePlugin;
 using Lowscope.AppwritePlugin.Accounts.Model;
