@@ -11,7 +11,6 @@ using Newtonsoft.Json;
 using Lowscope.AppwritePlugin.Utils;
 using Lowscope.AppwritePlugin.Identity;
 using System.Collections.Specialized;
-using System.Web;
 
 namespace Lowscope.AppwritePlugin.Database
 {
@@ -29,13 +28,13 @@ namespace Lowscope.AppwritePlugin.Database
 
             if (query != null)
             {
-                NameValueCollection queryParams = HttpUtility.ParseQueryString(String.Empty);
+                NameValueCollection queryParams = new NameValueCollection();
                 foreach( string qValue in query)
                 {
                     queryParams.Add("queries[]", qValue);
                 }
 
-                url += "?" + ToHttpQueryString(queryParams);
+                url += WebUtilities.ToQueryString(queryParams);
             }
 
 

@@ -381,11 +381,11 @@ namespace Lowscope.AppwritePlugin.Accounts
 
             string url = $"{config.AppwriteURL}/account/sessions/oauth2/callback/{provider}/{config.AppwriteProjectID}";
 
-            NameValueCollection queryString = System.Web.HttpUtility.ParseQueryString(string.Empty);
+            NameValueCollection queryString = new NameValueCollection();
 			queryString.Add("code", code);
 			queryString.Add("state", JsonConvert.SerializeObject(stateParam));
 
-			url += "?" + queryString.ToString();
+			url += WebUtilities.ToQueryString(queryString);
 
             using var request = new WebRequest(EWebRequestType.GET, url, headers, userIdentity.GetUser()?.Cookie);
 			request.SetTimeout(30);
